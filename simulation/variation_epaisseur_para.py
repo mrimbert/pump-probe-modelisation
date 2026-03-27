@@ -37,14 +37,14 @@ epaisseurs_nm = np.linspace(253,1000,150) #[nm] Plage d'épaisseurs à simuler
 
 #Paramètres de discrétisation
 NEt = 100 # nombre d’échantillons énergie 
-Nt = 10000 # nombre de pas en temps
-Nz = 10 # nombre de pas en espace
+Nt = 20000 # nombre de pas en temps
+Nz = 20 # nombre de pas en espace
 Etmax = 8.01e-21 #[J] borne supérieure de l'intégrale de polarisation
 
 #Paramètres du pulse d'entrée
-FWHM = 150e-15 #[s] durée à mi-hauteur du pulse d'entrée
+FWHM = 100e-15 #[s] durée à mi-hauteur du pulse d'entrée
 tau0 = 1e-12 #[s] temps de pic du pulse d'entrée
-amplitude = 1e5 #[V/m] amplitude de la pompe utilisée dans le code
+amplitude = 3.20e7 #[V/m] amplitude de la pompe utilisée dans le code
 
 # --------------------
 # CONSTANTES PHYSIQUES FONDAMENTALES
@@ -252,7 +252,6 @@ def process_thickness(L_curr):
     r_gold_val = num_r / den_r
     
     # Paramètres de pulse
-    FWHM = 150e-15
     sigma = FWHM / (2*np.sqrt(2*np.log(2)))
     tau0 = t[2500] 
     
