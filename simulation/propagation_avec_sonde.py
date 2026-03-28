@@ -35,9 +35,9 @@ Nz = 11 # nombre de pas en espace
 Etmax = 8.01e-21 #[J] borne supérieure de l'intégrale de polarisation
 
 #Paramètres du pulse d'entrée
-FWHM = 150e-15 #[s] durée à mi-hauteur du pulse d'entrée
+FWHM = 100e-15 #[s] durée à mi-hauteur du pulse d'entrée
 tau0 = 1e-12 #[s] temps de pic du pulse d'entrée
-amplitude = 1e8#[V/m] amplitude de la pompe utilisée dans le code
+amplitude = 3.2e7 #[V/m] amplitude de la pompe utilisée dans le code
 R = 7.5e-6  #[m] Rayon du faisceau
 F_repetition = 80e6 #[Hz] Fréquence de répétition du laser
 

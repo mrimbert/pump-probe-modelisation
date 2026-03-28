@@ -28,7 +28,7 @@ Egap = 2.272e-19 #[J]
 d_cv = (1.12e-28)**2 #[C².m²] moment dipolaire, indiquer |d_cv|²
 
 #Paramètre de simulation
-n_gold = 0.15 + 1j*4.74 #[adim] indice de réfraction du miroir d'or
+n_gold = 0.15 - 1j*4.74 #[adim] indice de réfraction du miroir d'or
 couches_lineaires = np.array([], dtype=np.float64) # Format : [[indice, epaisseur], ...] Laisser vide si juste air
 #Liste des listes [indice, epaisseur] des couches linéaires précédent le semiconducteur, laisser vide si seulement air
 theta_inc_deg = 20 #Angle d'incidence du faisceau sur la structure (en degrés, 0° = incidence normale)
@@ -37,14 +37,14 @@ epaisseurs_nm = np.linspace(253,1000,150) #[nm] Plage d'épaisseurs à simuler
 
 #Paramètres de discrétisation
 NEt = 100 # nombre d’échantillons énergie 
-Nt = 20000 # nombre de pas en temps
-Nz = 20 # nombre de pas en espace
+Nt = 10000 # nombre de pas en temps
+Nz = 10 # nombre de pas en espace
 Etmax = 8.01e-21 #[J] borne supérieure de l'intégrale de polarisation
 
 #Paramètres du pulse d'entrée
 FWHM = 100e-15 #[s] durée à mi-hauteur du pulse d'entrée
 tau0 = 1e-12 #[s] temps de pic du pulse d'entrée
-amplitude = 3.20e7 #[V/m] amplitude de la pompe utilisée dans le code
+amplitude = 1.5e7 #[V/m] amplitude de la pompe utilisée dans le code
 
 # --------------------
 # CONSTANTES PHYSIQUES FONDAMENTALES
@@ -234,12 +234,17 @@ def process_thickness(L_curr):
     """
     r_in_0, t_in_0, r_out_0, t_out_0, cos_theta_gaas_complex = get_multistack_coeffs_njit(couches_lineaires, theta_inc_rad)
     cos_theta_gaas_real = np.real(cos_theta_gaas_complex)
-    L_effective = (L_curr * 1e-9) / cos_theta_gaas_real
+    if np.abs(cos_theta_gaas_real) < 1e-12:
+        raise ValueError("cos(theta) dans le substrat est trop proche de 0 : incidence quasi rasante non supportée")
+    L_normal = L_curr * 1e-9
+    k0z = k0 * cos_theta_gaas_real
 
     # 1. Recalcul de la grille temporelle et spatiale spécifique à cette épaisseur
-    # On garde Nz fixe, donc dt et dz changent
-    dt = (L_effective)/(v_g*(Nz-1))
-    dz = v_g * dt
+    # On discrétise l'épaisseur réelle (normale à la couche)
+    # et on adapte le temps via la vitesse projetée sur z.
+    dz = L_normal / (Nz-1)
+    v_g_z = v_g * cos_theta_gaas_real
+    dt = dz / v_g_z
     
     t = np.arange(Nt) * dt
     alpha = np.exp(dt*(-1j*(Et)/h_bar-gamma)) # Recalcul de alpha car dt a changé
@@ -252,6 +257,7 @@ def process_thickness(L_curr):
     r_gold_val = num_r / den_r
     
     # Paramètres de pulse
+    FWHM = 100e-15
     sigma = FWHM / (2*np.sqrt(2*np.log(2)))
     tau0 = t[2500] 
     
@@ -291,9 +297,9 @@ def process_thickness(L_curr):
                 # Appel direct aux fonctions numba avec les tableaux locaux
                 F_plus_njit(F_array_plus, E_plus, alpha, gamma, Et, h_bar, m, n)
                 F_moins_njit(F_array_moins, E_moins, alpha, gamma, Et, h_bar, m, n)
-                F_njit(F_array, F_array_plus, F_array_moins, k0, dz, m, n)
+                F_njit(F_array, F_array_plus, F_array_moins, k0z, dz, m, n)
                 
-                E_combined = E_plus[m, n-1]*np.exp(-1j*k0*dz*m) + E_moins[m, n-1]*np.exp(1j*k0*dz*m)
+                E_combined = E_plus[m, n-1]*np.exp(-1j*k0z*dz*m) + E_moins[m, n-1]*np.exp(1j*k0z*dz*m)
                 
                 rho_calcul_njit(rho_e, rho_h, F_array, E_combined, kappa, dt, tau_c, n, m)
                 
@@ -304,10 +310,10 @@ def process_thickness(L_curr):
             m_back = Nz-1
             F_plus_njit(F_array_plus, E_plus, alpha, gamma, Et, h_bar, m_back, n)
             F_moins_njit(F_array_moins, E_moins, alpha, gamma, Et, h_bar, m_back, n)
-            F_njit(F_array, F_array_plus, F_array_moins, k0, dz, m_back, n)
+            F_njit(F_array, F_array_plus, F_array_moins, k0z, dz, m_back, n)
             
             # 2. Calcul du champ combiné au fond (basé sur n-1 pour interaction causale)
-            E_combined_back = E_plus[m_back, n-1]*np.exp(-1j*k0*dz*m_back) + E_moins[m_back, n-1]*np.exp(1j*k0*dz*m_back)
+            E_combined_back = E_plus[m_back, n-1]*np.exp(-1j*k0z*dz*m_back) + E_moins[m_back, n-1]*np.exp(1j*k0z*dz*m_back)
             
             # 3. Mise à jour des populations (rho) au fond pour l'instant n
             rho_calcul_njit(rho_e, rho_h, F_array, E_combined_back, kappa, dt, tau_c, n, m_back)
@@ -315,7 +321,7 @@ def process_thickness(L_curr):
             # Condition limite arrière
 
             L_total = (Nz-1)*dz
-            dephasage = np.exp(-2j*k0*L_total)
+            dephasage = np.exp(-2j*k0z*L_total)
             E_moins[-1, n] = r_gold_val * E_plus[-1, n] * dephasage
             
             # Propagation arrière
